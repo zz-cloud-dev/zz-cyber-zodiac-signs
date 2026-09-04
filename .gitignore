@@ -1,0 +1,19 @@
+# ===== 商业/内部资料：一律不入库 =====
+docs/
+*.pdf
+
+# ===== 本地环境 =====
+.DS_Store
+Thumbs.db
+*.local
+.env
+.env.*
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+
+# ===== 运行缓存 =====
+node_modules/
+*.log

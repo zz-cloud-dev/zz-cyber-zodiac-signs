@@ -1,0 +1,92 @@
+/* ============================================================
+   星语星图 · 星座主题与星图引擎样式
+   --accent 等主题变量由 app.js 按星座动态注入
+   ============================================================ */
+
+body { --accent: #8A6FE8; --accent-deep: #6F51D8; --accent-soft: #F0ECFF; --accent-rgb: 138,111,232;
+       --sky-a: #2A2245; --sky-b: #1C1634; --sky-c: #100D22; }
+
+/* ---------- SVG 星图（深色星夜，独立于页面亮色） ---------- */
+.chart-2d { padding: 4px 0 2px; }
+.constellation {
+  width: 100%; max-width: 318px; margin: 0 auto; display: block;
+  overflow: hidden; border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(10, 8, 30, .45), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+.constellation path.star-line {
+  stroke: var(--line-star, #DFE6FF);
+  stroke-width: 0.65;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  filter: drop-shadow(0 0 2.5px rgba(255, 255, 255, .5));
+  opacity: .92;
+}
+.constellation.is-drawing path.star-line { animation: lineDraw .6s ease var(--ld, 0s) forwards; }
+.constellation:not(.is-drawing) path.star-line { stroke-dashoffset: 0; }
+
+.constellation .star-sparkle { opacity: 0; animation: dotIn .5s ease forwards; }
+.constellation .star-sparkle .sp-halo {
+  fill: currentColor; filter: blur(1.6px); opacity: .18;
+  transform-box: fill-box; transform-origin: center;
+  animation: haloBreathe var(--dur, 4.2s) ease-in-out var(--d, 0s) infinite;
+}
+.constellation .star-sparkle .sp-core {
+  fill: currentColor; filter: blur(.3px); opacity: .92;
+  transform-box: fill-box; transform-origin: center;
+  animation: coreBeat var(--dur2, 2.6s) ease-in-out calc(var(--d, 0s) + .4s) infinite;
+}
+.constellation .star-sparkle .sp-v,
+.constellation .star-sparkle .sp-h {
+  stroke: currentColor; stroke-linecap: round; filter: blur(.3px); opacity: .24;
+  animation: spikeFlash var(--dur3, 6.5s) ease-in-out var(--d, 0s) infinite;
+}
+.constellation .star-sparkle .sp-d {
+  stroke: currentColor; stroke-linecap: round; filter: blur(.3px); opacity: .16;
+  animation: spikeFlash var(--dur4, 9.6s) ease-in-out calc(var(--d, 0s) + 1.6s) infinite;
+}
+.constellation .bg-twinkle { animation: bgTw 5s ease-in-out var(--d, 0s) infinite; }
+
+@keyframes lineDraw { to { stroke-dashoffset: 0; } }
+@keyframes dotIn { to { opacity: 1; } }
+@keyframes haloBreathe { 0%,100% { opacity: .14; transform: scale(1); } 50% { opacity: .55; transform: scale(1.2); } }
+@keyframes coreBeat { 0%,100% { opacity: .82; transform: scale(.92); } 32% { opacity: 1; transform: scale(1.08); } 64% { opacity: .9; transform: scale(1); } }
+@keyframes spikeFlash { 0%,82%,100% { opacity: .2; } 84% { opacity: 1; } 87% { opacity: .4; } 90% { opacity: .75; } 93% { opacity: .22; } }
+@keyframes bgTw { 0%,100% { opacity: .55; } 50% { opacity: .2; } }
+
+/* 星座简笔印章（2D 模式小字说明）省略 */
+
+/* 3D 画布 */
+.chart-3d canvas {
+  width: 100% !important; height: 372px !important;
+  touch-action: none; border-radius: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), inset 0 0 60px rgba(8, 6, 24, .5);
+}
+/* 珠光雾面滤镜：月光香槟晕 + 上下低饱和柔雾 → 把深空往“高级灰·氛围感”收拢 */
+.chart-3d::before {
+  content: ""; position: absolute; inset: 0; border-radius: 18px; pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(60% 40% at 50% -4%, rgba(255,244,226,.16), rgba(255,244,226,0) 70%),
+    radial-gradient(42% 34% at 50% 118%, rgba(178,168,220,.14), rgba(178,168,220,0) 72%),
+    radial-gradient(130% 105% at 50% 0%, rgba(255,246,232,.045), rgba(255,246,232,0) 55%);
+}
+/* 顶部洒光（月光方向），让 3D 星场不再像贴纸平铺 */
+.chart-3d::after {
+  content: ""; position: absolute; left: 4%; top: -46px; width: 92%; height: 140px;
+  background: radial-gradient(55% 100% at 50% 0%, rgba(255,238,214,.09), rgba(255,238,214,0) 70%);
+  pointer-events: none; border-radius: 50%; z-index: 1;
+}
+.chart-3d__hint { z-index: 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .constellation .star-sparkle *, .constellation .bg-twinkle { animation: none !important; }
+  .constellation .star-sparkle .sp-halo { opacity: .5; }
+  .constellation .star-sparkle .sp-core, .constellation .star-sparkle .sp-v,
+  .constellation .star-sparkle .sp-h, .constellation .star-sparkle .sp-d { opacity: 1; }
+  .constellation.is-drawing path.star-line { animation: none; stroke-dashoffset: 0; }
+}
+
+/* 星座运势卡内的小圆点主题色 */
+.fortune__dot { color: var(--accent-deep); }

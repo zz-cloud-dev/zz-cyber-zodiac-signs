@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>星语星图 · 拥有一张属于你的星图</title>
+<meta name="description" content="输入生日，点亮专属于你的星座星图 —— 2D/3D 星图 · 星座运势 · 星座合拍。纯本地趣味生成，不收集任何信息。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>✨</text></svg>">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/signs.css">
+</head>
+<body data-sign="" class="is-home">
+
+<!-- 全局氛围背景：极淡彩光 + 浮尘星点 -->
+<div class="ambient" aria-hidden="true">
+  <i class="ambient__orb ambient__orb--a"></i>
+  <i class="ambient__orb ambient__orb--b"></i>
+  <i class="ambient__orb ambient__orb--c"></i>
+</div>
+
+<div class="phone">
+  <div class="app" id="app">
+
+    <!-- ================= 首页 ================= -->
+    <section class="view is-active" id="view-home">
+      <div class="hero">
+        <div class="hero__ring" aria-hidden="true">
+          <span class="hero__ring-glyph" id="heroGlyph"></span>
+          <i class="hero__sat hero__sat--1"></i><i class="hero__sat hero__sat--2"></i><i class="hero__sat hero__sat--3"></i>
+        </div>
+        <p class="hero__eyebrow">十二星座 · 星语解读</p>
+        <h1 class="hero__title">星语星图</h1>
+        <p class="hero__slogan">拥有一张<span class="hero__slogan-hl">属于你</span>的星图</p>
+        <p class="hero__desc">输入生日，点亮你的专属星图<br>本地趣味生成 · 不收集任何信息</p>
+
+        <div class="hero__cta">
+          <button type="button" class="btn btn-primary btn-lg" data-go="personal">✦ &nbsp;生成我的专属星图</button>
+          <button type="button" class="btn btn-ghost btn-lg" data-go="match">♡ &nbsp;测星座合拍</button>
+        </div>
+        <p class="hero__foot">星图仅供文化娱乐 · 人生的主笔是你</p>
+      </div>
+    </section>
+
+    <!-- ================= 专属星图 ================= -->
+    <section class="view" id="view-personal" hidden>
+      <header class="topbar">
+        <button type="button" class="icon-btn" data-back aria-label="返回首页">‹</button>
+        <span class="topbar__title">我的专属星图</span>
+        <span class="topbar__sp"></span>
+      </header>
+
+      <!-- ① 输入 -->
+      <div class="step" id="p-input">
+        <h2 class="step__title">想看看你的星图吗？</h2>
+        <p class="step__desc">输入生日自动判定星座，或直接点选一个星座</p>
+
+        <div class="field">
+          <label class="field__label" for="p-year">我的生日</label>
+          <div class="date-sel">
+            <select class="select" id="p-year"></select>
+            <select class="select" id="p-month"></select>
+            <select class="select" id="p-day"></select>
+          </div>
+        </div>
+
+        <div class="zgrid" id="zodiac-grid" role="listbox" aria-label="点选星座"></div>
+
+        <button type="button" class="btn btn-primary btn-lg btn-block" id="p-go">✦ &nbsp;查看我的星图</button>
+        <p class="step__hint">日期仅在本地用于判定星座 · 不会上传</p>
+      </div>
+
+      <!-- ② 结果 -->
+      <div class="step" id="p-result" hidden>
+        <div class="scene" id="scene-card">
+          <div class="scene__head">
+            <div>
+              <h3 class="scene__name" id="r-name"></h3>
+              <p class="scene__sub" id="r-sub"></p>
+            </div>
+            <div class="seg" role="group" aria-label="星图视角">
+              <button type="button" class="seg__btn is-on" data-mode="2d">2D</button>
+              <button type="button" class="seg__btn" data-mode="3d">3D</button>
+            </div>
+          </div>
+          <div class="scene__chart" id="chart-box">
+            <div class="chart-2d" id="chart-2d"></div>
+            <div class="chart-3d" id="chart-3d" hidden>
+              <canvas id="gl-canvas"></canvas>
+              <p class="chart-3d__hint">拖动旋转 · 双指缩放</p>
+            </div>
+          </div>
+          <div class="scene__meta">
+            <span class="chip" id="r-element"></span>
+            <span class="chip" id="r-planet"></span>
+            <span class="chip" id="r-color"></span>
+          </div>
+          <div class="scene__glow" aria-hidden="true"></div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card__title">今日星语 <span class="card__tag">趣味参考</span></div>
+            <div class="fortune" id="r-fortune"></div>
+          </div>
+          <div class="card">
+            <div class="card__title">你的星座档案</div>
+            <div class="trait" id="r-traits"></div>
+          </div>
+          <div class="card card--quote">
+            <p class="quote" id="r-quote"></p>
+          </div>
+        </div>
+
+        <div class="dock">
+          <button type="button" class="btn btn-primary btn-lg" id="p-share">分享我的星图</button>
+          <button type="button" class="btn btn-ghost btn-lg" id="p-again">换一个看看</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 星座合拍 ================= -->
+    <section class="view" id="view-match" hidden>
+      <header class="topbar">
+        <button type="button" class="icon-btn" data-back aria-label="返回首页">‹</button>
+        <span class="topbar__title">星座合拍</span>
+        <span class="topbar__sp"></span>
+      </header>
+
+      <div class="step" id="m-input">
+        <h2 class="step__title">两颗星星的距离</h2>
+        <p class="step__desc">输入你俩的生日，看看星图里的你们有多合拍</p>
+
+        <div class="field">
+          <label class="field__label" for="m1-year">你的生日</label>
+          <div class="date-sel">
+            <select class="select" id="m1-year"></select>
+            <select class="select" id="m1-month"></select>
+            <select class="select" id="m1-day"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="m2-year">TA 的生日</label>
+          <div class="date-sel">
+            <select class="select" id="m2-year"></select>
+            <select class="select" id="m2-month"></select>
+            <select class="select" id="m2-day"></select>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-lg btn-block" id="m-go">看看我们合不合</button>
+        <p class="step__hint">结果由你们的两颗星座星图计算 · 仅供趣味</p>
+      </div>
+
+      <div class="step" id="m-result" hidden>
+        <div class="duo">
+          <div class="duo__sign" id="duo-a"></div>
+          <div class="duo__mid">
+            <div class="meter" id="meter"></div>
+            <p class="duo__score" id="m-score"></p>
+            <p class="duo__kw" id="m-kw"></p>
+          </div>
+          <div class="duo__sign" id="duo-b"></div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card__title">合拍解读 <span class="card__tag">趣味参考</span></div>
+            <p class="match-txt" id="m-txt"></p>
+          </div>
+          <div class="card">
+            <div class="card__title">元素关系</div>
+            <p class="match-el" id="m-el"></p>
+          </div>
+        </div>
+
+        <div class="dock">
+          <button type="button" class="btn btn-primary btn-lg" id="m-share">生成合拍星卡</button>
+          <button type="button" class="btn btn-ghost btn-lg" id="m-again">再测一对</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 分享弹层 ================= -->
+    <div class="modal" id="share-modal" hidden>
+      <div class="modal__mask" data-close-share></div>
+      <div class="modal__box">
+        <h3 class="modal__title">长按图片保存到相册</h3>
+        <p class="modal__tip">保存后分享到小红书 / 朋友圈，收获你的星图同好</p>
+        <div class="preview" id="share-preview"></div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn-ghost" data-close-share>关闭</button>
+          <button type="button" class="btn btn-primary" id="share-dl">保存图片</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<footer class="foot">
+  <p>星语星图 · 十二星座趣味解读<br>结果仅供参考，不构成人生建议 · 好心情由你自己决定</p>
+</footer>
+
+<script src="js/vendor/three.min.js"></script>
+<script src="js/vendor/OrbitControls.js"></script>
+<script src="js/data.js"></script>
+<script src="js/mock.js"></script>
+<script src="js/star-svg.js"></script>
+<script src="js/star-3d.js"></script>
+<script src="js/share.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
