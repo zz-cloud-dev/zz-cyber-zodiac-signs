@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D 流星雨 · 星语星图</title>
+<meta name="description" content="把愿望说给宇宙听。3D 深空流星雨，纯本地 Canvas 绘制，不收集任何信息。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌌</text></svg>">
+<style>
+/* ============================================================
+   3D 流星雨 · 星语星图
+   深空 3D：镜头在星海中缓移，银河斜贯，流星带纵深掠过
+   小红书女性审美 · 珠光白金 + 低饱和冷蓝紫 + 克制的宏大
+   ============================================================ */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --ink-star: #F8F4FF;
+  --ink-soft: rgba(242, 236, 255, .78);
+  --ink-faint: rgba(234, 226, 255, .42);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: #06051a;
+  color: var(--ink-star);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.sky { position: fixed; inset: 0; display: block; }
+
+.veil {
+  position: fixed; inset: auto 0 0 0; height: 46vh;
+  background: linear-gradient(180deg, rgba(6, 5, 26, 0) 0%, rgba(6, 5, 26, .46) 76%, rgba(5, 4, 22, .9) 100%);
+  pointer-events: none;
+}
+
+.cap {
+  position: fixed; inset: 0 0 auto 0; height: 16vh;
+  background: linear-gradient(180deg, rgba(6, 5, 26, .45) 0%, rgba(6, 5, 26, 0) 100%);
+  pointer-events: none;
+}
+
+/* ---------- 文案 ---------- */
+.verse {
+  position: fixed; left: 0; right: 0; top: 15vh;
+  text-align: center;
+  pointer-events: none;
+  padding: 0 26px calc(var(--safe-t) + 0px);
+  animation: rise 1.8s cubic-bezier(.16, 1, .3, 1) both;
+  text-shadow: 0 2px 34px rgba(8, 6, 30, .95);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.verse h1 {
+  font-size: clamp(30px, 6.2vw, 52px);
+  font-weight: 300;
+  letter-spacing: .16em;
+  text-indent: .16em;
+  line-height: 1.4;
+  color: #FDFAFF;
+}
+.verse p {
+  margin-top: 18px;
+  font-size: clamp(12.5px, 1.9vw, 14px);
+  font-weight: 400;
+  letter-spacing: .22em;
+  text-indent: .22em;
+  color: var(--ink-soft);
+}
+
+.hint {
+  position: fixed; left: 0; right: 0;
+  bottom: calc(58px + var(--safe-b));
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: .26em;
+  text-indent: .26em;
+  color: var(--ink-faint);
+  pointer-events: none;
+  z-index: 2;
+  animation: rise 1.8s .4s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.mark {
+  position: fixed; right: 18px;
+  bottom: calc(16px + var(--safe-b));
+  font-size: 11px; letter-spacing: .28em; text-indent: .28em;
+  color: var(--ink-faint); pointer-events: none; z-index: 2;
+}
+
+@media (max-width: 560px) {
+  .verse { top: 16vh; }
+}
+</style>
+</head>
+<body>
+
+<canvas class="sky" id="sky" aria-hidden="true"></canvas>
+<div class="veil" aria-hidden="true"></div>
+<div class="cap" aria-hidden="true"></div>
+
+<main class="verse">
+  <!-- 文案可自由替换；录纯星空把两行留空即可 -->
+  <h1 id="mainCopy">把愿望，说给宇宙听</h1>
+  <p id="subCopy">整个星空，都会替你记得</p>
+</main>
+<p class="hint" id="hint">轻触夜空，落一场流星雨给你</p>
+<div class="mark" id="mark">星语星图</div>
+
+<script>
+/* ============================================================
+   3D 流星雨 · Canvas 引擎（自写 3D 投影，无外部依赖）
+
+   坐标约定：
+   相机在原点，朝 +z 看。世界坐标 y 向下为正（同屏幕），
+   投影：sx = CX + x*F/z，sy = CY + y*F/z。
+   这样"从屏幕某点反推世界坐标"非常直观：
+     worldX(sx, z) = (sx-CX)/F*z
+   深度 z 越小越靠近镜头，流星近大远小由 1/z 自然给出。
+
+   结构：
+   1) 离屏背景层：深空渐变 + 银河斜带 + 星云（不动，永恒）
+   2) 3D 动态星野：约 700-1500 颗分布在真实纵深，镜头缓移
+   3) 流星：fall 掠空 / sweep 远掠 / dive 俯冲
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var cv = document.getElementById('sky');
+  var ctx = cv.getContext('2d', { alpha: false });
+  var REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var W = 0, H = 0, DPR = 1, CX = 0, CY = 0;
+  var FOV_Y = 70 * Math.PI / 180;
+  var TAN_Y = Math.tan(FOV_Y / 2);   // 垂直半角正切 ≈ 0.70
+  var F = 0;                         // 焦距 px = (H/2)/TAN_Y
+  var TAN_X = 0;                     // 水平半角正切 = TAN_Y*W/H
+
+  /* ---------- 颜色 ---------- */
+  var HEAT = {
+    warm:  ['#FFF4E2', '#FFF9EC', '#FFF0D8'],
+    pearl: ['#FFFDF7', '#F6F1FF', '#EFF2FF'],
+    blush: ['#FFE2EC', '#F7D9E6', '#FFDDE9'],
+    cool:  ['#D6DCF7', '#C7D2F2', '#DDE3FF']
+  };
+  function rgb(hex) {
+    var h = hex.replace('#', '');
+    return [+('0x' + h.substr(0, 2)), +('0x' + h.substr(2, 2)), +('0x' + h.substr(4, 2))];
+  }
+  function pick(list, r) { return list[(r * list.length) | 0]; }
+  function rgba(hex, a) {
+    var c = rgb(hex);
+    return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+  }
+
+  /* 柔光精灵：预渲染四色光晕，避免每帧建渐变 */
+  function glowSprite(hex) {
+    var s = document.createElement('canvas');
+    s.width = s.height = 64;
+    var g = s.getContext('2d');
+    var c = rgb(hex);
+    var grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',1)');
+    grad.addColorStop(.25, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',.55)');
+    grad.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    return s;
+  }
+  var SPRITE = {
+    white: glowSprite('#FFFFFF'),
+    warm:  glowSprite('#FFEFD2'),
+    blush: glowSprite('#FFD3E0'),
+    cool:  glowSprite('#C6D2F4')
+  };
+
+  /* ============================================================
+     1. 离屏背景：深空渐变 + 银河 + 星云 + 星尘
+     ============================================================ */
+  var bg = null;
+
+  function buildBG() {
+    bg = document.createElement('canvas');
+    bg.width = Math.round(W * DPR);
+    bg.height = Math.round(H * DPR);
+    var b = bg.getContext('2d');
+    b.scale(DPR, DPR);
+
+    var g = b.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#07061C');
+    g.addColorStop(.5, '#090824');
+    g.addColorStop(1, '#0A0927');
+    b.fillStyle = g;
+    b.fillRect(0, 0, W, H);
+
+    // 星云柔光
+    var nebula = [
+      { x: W * .8,  y: H * .24, r: Math.max(W, H) * .4,  c: 'rgba(96,96,200,.12)' },
+      { x: W * .05, y: H * .72, r: Math.max(W, H) * .42, c: 'rgba(150,86,140,.08)' },
+      { x: W * .5,  y: H * .9,  r: Math.max(W, H) * .3,  c: 'rgba(70,120,190,.10)' }
+    ];
+    for (var i = 0; i < nebula.length; i++) {
+      var n = nebula[i];
+      var rg = b.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      rg.addColorStop(0, n.c);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      b.fillStyle = rg;
+      b.fillRect(n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+    }
+
+    // 银河：两条低饱和光雾沿同一斜轴交错，产生纵深亮带
+    var gA1 = { x: W * -.1, y: H * .55 }, gB1 = { x: W * 1.1, y: H * -.05 };
+    var gA2 = { x: W * -.15, y: H * .6 }, gB2 = { x: W * .95, y: H * .18 };
+    var bands = [ [gA1, gB1], [gA2, gB2] ];
+    for (var bi = 0; bi < bands.length; bi++) {
+      var A = bands[bi][0], B = bands[bi][1];
+      var len = Math.hypot(B.x - A.x, B.y - A.y);
+      var steps = Math.max(6, Math.round(len / 90));
+      for (var s = 0; s <= steps; s++) {
+        var tt = s / steps;
+        var px = A.x + (B.x - A.x) * tt;
+        var py = A.y + (B.y - A.y) * tt + Math.sin(tt * 5 + bi * 2) * H * .02;
+        var rr = Math.max(W, H) * (.055 + Math.abs(tt - .5) * .05);
+        var pg = b.createRadialGradient(px, py, 0, px, py, rr);
+        pg.addColorStop(0, 'rgba(222,220,248,.10)');
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        b.fillStyle = pg;
+        b.fillRect(px - rr, py - rr, rr * 2, rr * 2);
+      }
+    }
+
+    // 银河尘埃星（背景层，不闪烁但密）
+    var dust = Math.min(1000, Math.round(W * H / 1600));
+    for (var d = 0; d < dust; d++) {
+      var bIdx = Math.random() < .6 ? 0 : 1;
+      var Bb = bands[bIdx];
+      var t2 = (Math.random() * 1.3 - .15);
+      var cxp = Bb[0].x + (Bb[1].x - Bb[0].x) * t2;
+      var cyp = Bb[0].y + (Bb[1].y - Bb[0].y) * t2;
+      var spread = Math.max(W, H) * .085;
+      var ox = (Math.random() * 2 - 1) * spread;
+      var oy = (Math.random() * 2 - 1) * spread * .3;
+      var dens = Math.max(0, 1 - Math.abs(ox) / spread);
+      if (Math.random() > dens * 1.1) continue;
+      var xb = cxp + ox, yb = cyp + oy;
+      if (yb < 0 || yb > H || xb < 0 || xb > W) continue;
+      var tone = Math.random();
+      var col2 = tone < .55 ? HEAT.pearl[(Math.random() * 2) | 0]
+               : tone < .8 ? HEAT.warm[(Math.random() * 2) | 0]
+               : HEAT.blush[(Math.random() * 2) | 0];
+      b.beginPath();
+      b.arc(xb, yb, .3 + Math.random() * .8, 0, 6.2832);
+      b.fillStyle = rgba(col2, .06 + Math.random() * .16);
+      b.fill();
+    }
+
+    // 全屏极远星尘
+    var far = Math.min(480, Math.round(W * H / 3400));
+    for (var f2 = 0; f2 < far; f2++) {
+      var key = Math.random();
+      var c3 = key < .5 ? HEAT.cool[(Math.random() * 2) | 0]
+             : key < .85 ? HEAT.pearl[(Math.random() * 2) | 0]
+             : HEAT.blush[(Math.random() * 2) | 0];
+      b.beginPath();
+      b.arc(Math.random() * W, Math.random() * H, .2 + Math.random() * .45, 0, 6.2832);
+      b.fillStyle = rgba(c3, .07 + Math.random() * .1);
+      b.fill();
+    }
+  }
+
+  /* ============================================================
+     2. 3D 动态星野
+     ============================================================ */
+  var stars = [];
+  var simT = 0;   // 场景时间（秒），用于闪烁与镜头缓移
+
+  // 星星存放在世界坐标：在相机前方的视锥体（带旋转裕量）内，
+  // z ∈ [360, 3360]。这样透视近大远小 + 偏航不露空。
+  function makeStar(rand) {
+    var depth = 360 + Math.pow(rand(), 1.7) * 3000;
+    var spanX = depth * TAN_X * 1.5;   // 水平：略超出视锥，防偏航露边
+    var spanY = depth * TAN_Y * 1.5;   // 垂直：同上
+    var r = rand();
+    var big = r > .945;
+    var tone = rand();
+    var key;
+    if (big) key = tone < .45 ? 'pearl' : tone < .8 ? 'warm' : 'blush';
+    else key = tone < .32 ? 'cool' : tone < .78 ? 'pearl' : 'blush';
+    return {
+      x: (rand() * 2 - 1) * spanX,
+      y: (rand() * 2 - 1) * spanY,
+      z: depth,
+      rw: big ? .9 + rand() * .7 : .2 + rand() * .35,  // 世界半径（随深度自然变小）
+      base: big ? .7 + rand() * .3 : .12 + rand() * .22,
+      sp: .4 + rand() * 2.8,
+      ph: rand() * 6.28,
+      big: big,
+      col: pick(HEAT[key], rand())
+    };
+  }
+
+  function scatterStars() {
+    var count = Math.min(1900, Math.max(750, Math.round(W * H / 820)));
+    stars.length = 0;
+    for (var i = 0; i < count; i++) stars.push(makeStar(Math.random));
+  }
+
+  /* ============================================================
+     3. 流星
+     ============================================================ */
+  var meteors = [];
+
+  // 屏幕坐标 → 某深度 z 处世界坐标
+  function atDepth(sx, sy, z) {
+    return { x: (sx - CX) / F * z, y: (sy - CY) / F * z, z: z };
+  }
+
+  var META_COL = [ ['warm', .6], ['pearl', .25], ['blush', .12], ['cool', .03] ];
+  function metaColor() {
+    var r = Math.random(), acc = 0;
+    for (var i = 0; i < META_COL.length; i++) {
+      acc += META_COL[i][1];
+      if (r < acc) return META_COL[i][0];
+    }
+    return 'warm';
+  }
+
+  /**
+   * kind:
+   *   'fall'   自动主打：近中景，从上方斜掠而下，明显
+   *   'sweep'  自动点缀：远景细长横贯，弱而快
+   *   'dive'   互动/偶发：从远处朝镜头俯冲，近大远小
+   * tx,ty：dive 时的屏幕落点（可选）
+   */
+  function spawnMeteor(kind, tx, ty) {
+    var z0, z1, sA, sB, dur, r0w;
+
+    if (kind === 'fall') {
+      // 深度基本不变（横掠天空），高度角度大 → 竖屏观感震撼
+      z0 = 700 + Math.random() * 700;
+      z1 = z0;
+      var enterX = Math.random() * W * .9 + W * .05;
+      sA = { x: enterX, y: -H * .06 };
+      sB = { x: enterX + (Math.random() * 2 - 1) * W * .22, y: H * (1.02 + Math.random() * .2) };
+      dur = .9 + Math.random() * .6;
+      r0w = 2.8 + Math.random() * 1.8;
+    } else if (kind === 'sweep') {
+      z0 = 1600 + Math.random() * 1400;
+      z1 = z0;
+      var dirS = Math.random() < .5 ? 1 : -1;
+      var yMid = H * (.15 + Math.random() * .6);
+      var depth = 240 + Math.random() * 140;
+      sA = { x: dirS > 0 ? -W * .08 : W * 1.08, y: yMid - depth };
+      sB = { x: dirS > 0 ? W * 1.08 : -W * .08, y: yMid + depth };
+      dur = 1.2 + Math.random() * .8;
+      r0w = 2.0 + Math.random() * 1.3;
+    } else {  // dive
+      // 从屏幕上方一侧的远处，斜划向点击点附近的近处 → 近大远小
+      z0 = 1000 + Math.random() * 600;
+      z1 = 380 + Math.random() * 180;
+      var tx0 = tx != null ? tx : W * (.15 + Math.random() * .7);
+      var ty0 = ty != null ? ty : H * (.5 + Math.random() * .35);
+      // 起点横向散开，避免纯垂直下落
+      var sxA = tx0 + (Math.random() * 2 - 1) * W * .6;
+      var syA = -H * (.05 + Math.random() * .1);
+      var sxB = tx0 + (Math.random() * 2 - 1) * W * .06;
+      var syB = ty0;
+      sA = { x: sxA, y: syA };
+      sB = { x: sxB, y: syB };
+      dur = .7 + Math.random() * .55;
+      r0w = 4.4 + Math.random() * 2.8;
+    }
+
+    // 屏幕出入口映射到各自深度平面，得到 3D 线段
+    var p0 = atDepth(sA.x, sA.y, z0);
+    var p1 = atDepth(sB.x, sB.y, z1);
+    var dx = p1.x - p0.x, dy = p1.y - p0.y, dz = p1.z - p0.z;
+    var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+
+    var key = metaColor();
+    var col = pick(HEAT[key], Math.random());
+
+    meteors.push({
+      x: p0.x, y: p0.y, z: p0.z,
+      ux: dx / dist, uy: dy / dist, uz: dz / dist,
+      speed: dist / dur,
+      tailTime: .28 + Math.random() * .22,           // 拖尾回溯时长（尾=走过的路）
+      r0w: r0w,
+      col: col,
+      sprite: SPRITE[key === 'warm' ? 'warm' : key === 'blush' ? 'blush' : key === 'cool' ? 'cool' : 'white'],
+      age: 0, life: dur * 1.25
+    });
+  }
+
+  /* ============================================================
+     4. 镜头（缓慢偏航 + 俯仰呼吸）
+     ============================================================ */
+  var CAM = { cosY: 1, sinY: 0, cosP: 1, sinP: 0 };
+  function camOrient(t) {
+    var yaw = Math.sin(t * .16 + .5) * .17;     // ±10° 缓摆
+    var pitch = Math.sin(t * .09 + 1.1) * .06;  // ±3.5° 俯仰
+    CAM.cosY = Math.cos(yaw);  CAM.sinY = Math.sin(yaw);
+    CAM.cosP = Math.cos(pitch); CAM.sinP = Math.sin(pitch);
+    return CAM;
+  }
+
+  /* 世界 → 屏幕；相机后方返回 null（用 CAM 预计算的角） */
+  function project(wx, wy, wz) {
+    var x1 = wx * CAM.cosY + wz * CAM.sinY;
+    var z1 = -wx * CAM.sinY + wz * CAM.cosY;
+    var y2 = wy * CAM.cosP - z1 * CAM.sinP;
+    var z2 = wy * CAM.sinP + z1 * CAM.cosP;
+    if (z2 < 20) return null;
+    return { x: CX + x1 * F / z2, y: CY + y2 * F / z2, z: z2 };
+  }
+
+  /* 流星用固定视角投影（流星瞬态，忽略镜头缓移避免歪斜） */
+  function projectFixed(wx, wy, wz) {
+    if (wz < 20) return null;
+    return { x: CX + wx * F / wz, y: CY + wy * F / wz, z: wz };
+  }
+
+  /* ============================================================
+     5. 主循环
+     ============================================================ */
+  var raf = null, last = 0;
+  var autoAt = .8;
+  var storm = 0;
+  var pressAt = 0, pressX = 0, pressY = 0, lastTapAt = 0;
+
+  function drawStars(t) {
+    camOrient(t);
+    for (var pass = 0; pass < stars.length; pass++) {
+      var st = stars[pass];
+      var pr = project(st.x, st.y, st.z);
+      if (!pr) continue;
+      if (pr.x < -60 || pr.x > W + 60 || pr.y < -60 || pr.y > H + 60) continue;
+      var tw = .72 + .28 * Math.sin(t * st.sp + st.ph);
+      var a = st.base * tw;
+      var pxR = Math.max(.4, st.rw * F / pr.z);
+
+      if (st.big) {
+        var gs = pxR * 22 + 18;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = a * .55;
+        ctx.drawImage(SPRITE.white, pr.x - gs / 2, pr.y - gs / 2, gs, gs);
+        ctx.globalAlpha = a * .3;
+        var m = pxR * 9 + 5;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = .7;
+        ctx.beginPath();
+        ctx.moveTo(pr.x - m, pr.y); ctx.lineTo(pr.x + m, pr.y);
+        ctx.moveTo(pr.x, pr.y - m); ctx.lineTo(pr.x, pr.y + m);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y, pxR * .9 + .3, 0, 6.2832);
+      ctx.fillStyle = rgba(st.col, a);
+      ctx.fill();
+    }
+  }
+
+  function drawMeteors(dt) {
+    if (!meteors.length) return;
+
+    for (var i = meteors.length - 1; i >= 0; i--) {
+      var mt = meteors[i];
+      mt.age += dt;
+      var fade = mt.age < mt.life * .78 ? 1 : 1 - (mt.age - mt.life * .78) / (mt.life * .22);
+      if (fade <= 0) { meteors.splice(i, 1); continue; }
+
+      mt.x += mt.ux * mt.speed * dt;
+      mt.y += mt.uy * mt.speed * dt;
+      mt.z += mt.uz * mt.speed * dt;
+      if (mt.z < 30 || mt.z > 9000) { meteors.splice(i, 1); continue; }
+
+      var h2 = projectFixed(mt.x, mt.y, mt.z);
+      if (!h2) { meteors.splice(i, 1); continue; }
+
+      // 尾巴 = 身后走过的轨迹（随年龄生长到 tailTime 封顶）
+      var tt = Math.min(mt.age, mt.tailTime);
+      var tl = mt.speed * tt;
+      var tail = projectFixed(
+        mt.x - mt.ux * tl,
+        mt.y - mt.uy * tl,
+        mt.z - mt.uz * tl
+      );
+      var tx2 = tail ? tail.x : h2.x - mt.ux * 60;
+      var ty2 = tail ? tail.y : h2.y - mt.uy * 60;
+
+      var c = rgb(mt.col);
+      var headR = mt.r0w * F / mt.z;
+
+      // 拖尾四段：最外柔光 / 外层 / 中层 / 内芯（越亮越实）
+      var layers = [
+        { w: headR * 3.4 + 12, a: .10 },
+        { w: headR * 2.2 + 8, a: .20 },
+        { w: headR * 1.2 + 3, a: .42 },
+        { w: headR * .55 + 1.2, a: .9 }
+      ];
+      for (var L = 0; L < layers.length; L++) {
+        var lay = layers[L];
+        var grad = ctx.createLinearGradient(tx2, ty2, h2.x, h2.y);
+        var cc = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',';
+        grad.addColorStop(0, cc + '0)');
+        grad.addColorStop(.65, cc + (fade * lay.a * .45) + ')');
+        grad.addColorStop(1, cc + (fade * lay.a) + ')');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = lay.w;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(tx2, ty2);
+        ctx.lineTo(h2.x, h2.y);
+        ctx.stroke();
+      }
+
+      // 头部
+      ctx.globalCompositeOperation = 'lighter';
+      var gs = headR * 20 + 34;
+      ctx.globalAlpha = Math.min(1, fade * .92);
+      ctx.drawImage(mt.sprite, h2.x - gs / 2, h2.y - gs / 2, gs, gs);
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(h2.x, h2.y, Math.max(1, headR * .42), 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,255,255,' + (fade * .96) + ')';
+      ctx.fill();
+    }
+  }
+
+  function frame(now) {
+    var dt = Math.min(34, now - last || 16.7) / 1000;
+    last = now;
+    simT += dt;
+    var t = simT;
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(bg, 0, 0, W, H);
+
+    drawStars(t);
+    drawMeteors(dt);
+
+    // 长按风暴：落向按住的位置
+    if (pressAt && !REDUCE) {
+      var n2 = Date.now();
+      if (n2 - pressAt > 420 && n2 - storm > 150) {
+        spawnMeteor('dive', pressX, pressY);
+        if (Math.random() < .5) spawnMeteor('dive', pressX + (Math.random() * 200 - 100), pressY);
+        storm = n2;
+      }
+    }
+
+    // 自动节奏：主 fall / dive，附带小型"流星雨爆发"
+    if (!REDUCE) {
+      autoAt -= dt;
+      if (autoAt <= 0) {
+        if (meteors.length < 12) {
+          var r = Math.random();
+          if (r < .5) spawnMeteor('fall');
+          else if (r < .78) spawnMeteor('dive');
+          else spawnMeteor('sweep');
+          // 28% 概率叠一场小爆发：一次落下 2-4 颗
+          if (Math.random() < .28) {
+            var burst = 2 + (Math.random() * 3 | 0);
+            for (var b2 = 0; b2 < burst && meteors.length < 15; b2++) {
+              spawnMeteor(Math.random() < .6 ? 'fall' : 'dive');
+            }
+          }
+        }
+        autoAt = .5 + Math.random() * 1.0;
+      }
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  /* ============================================================
+     6. 交互
+     ============================================================ */
+  function pointerAt(e) {
+    var r = cv.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+
+  cv.addEventListener('pointerdown', function (e) {
+    if (REDUCE) return;
+    var p = pointerAt(e);
+    var n = Date.now();
+    if (n - lastTapAt < 380) {      // 双击：连落两颗俯冲星
+      spawnMeteor('dive', p[0], p[1]);
+      spawnMeteor('dive', p[0], p[1]);
+      lastTapAt = 0;
+      pressAt = n;
+      pressX = p[0];
+      pressY = p[1];
+      return;
+    }
+    lastTapAt = n;
+    pressAt = n;
+    pressX = p[0];
+    pressY = p[1];
+    cv.setPointerCapture(e.pointerId);
+    spawnMeteor('dive', p[0], p[1]);
+  });
+
+  cv.addEventListener('pointerup', function () { pressAt = 0; });
+  cv.addEventListener('pointercancel', function () { pressAt = 0; });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) cancelAnimationFrame(raf);
+    else if (!REDUCE) { last = 0; raf = requestAnimationFrame(frame); }
+  });
+
+  /* ============================================================
+     7. 尺寸 / 启动
+     ============================================================ */
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    CX = W / 2; CY = H / 2;
+    F = (H / 2) / TAN_Y;
+    TAN_X = TAN_Y * W / H;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+
+    buildBG();
+    scatterStars();
+
+    if (REDUCE) {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.drawImage(bg, 0, 0, W, H);
+      drawStars(0);
+      return;
+    }
+    last = 0;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+})();
+</script>
+</body>
+</html>

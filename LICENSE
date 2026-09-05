@@ -1,25 +1,21 @@
-个人学习非商用许可协议
-Non-Commercial Personal-Use License
+MIT License
 
 Copyright (c) 2026 zz-cloud-dev（没有庸的程序员）
 
-一、许可授予（Grant of License）
-在遵守本协议全部条款的前提下，作者授予您一项免费的、非独占的、不可转让的许可，允许您：
-1. 下载、查看、运行本软件用于【个人学习、研究、娱乐、自我欣赏】等非商业目的；
-2. 为上述非商业目的修改、改编本软件。
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-二、明确禁止（Prohibited Uses）
-未经作者书面许可，您不得：
-1. 将本软件或其修改版本用于任何【商业用途】，包括但不限于：
-   - 出售、出租、转售本软件或其衍生版本；
-   - 以收费或引流变现为目的部署并对外提供服务（如搭建收费网站、接入付费接口）；
-   - 将本软件或其衍生作品嵌入任何商业产品、商业项目或商业内容中；
-   - 在商业广告、商业自媒体运营中作为获客或变现载体使用；
-2. 移除、修改、遮挡本软件中的版权声明、品牌标识（含分享卡水印配置）；
-3. 以任何方式暗示本软件与作者存在官方合作或代言关系。
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-三、再分发（Redistribution）
-非商业性再分发（如开源社区分享学习）须完整保留本协议及原始版权声明，且必须明确标注本协议的非商用限制。
-
-四、免责声明（Disclaimer）
-本软件按"现状"提供，不附带任何明示或默示的担保。作者不对使用本软件产生的任何直接或间接损失承担责任。本软件中星座、运势等内容仅供娱乐与文化参考，不构成任何形式的预测、决策或专业建议。
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

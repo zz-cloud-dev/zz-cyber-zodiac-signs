@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>把愿望说给流星听 · 星语星图</title>
+<meta name="description" content="轻触夜空，等一场为你而来的流星雨：许愿时刻，金色流星会替你记得。纯本地 Canvas 动效，不收集任何信息。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌠</text></svg>">
+<style>
+/* ============================================================
+   把愿望说给流星听 · 星语星图
+   一场 24 秒的流星叙事：
+   序曲（稀疏）→ 渐起 → 流星雨 → 金色许愿 → 归于寂静
+   小红书女性审美 · 低饱和深空 · 珠光白金与许愿金
+   ============================================================ */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --ink-star: #F6F1FF;
+  --ink-soft: rgba(240, 234, 255, .72);
+  --ink-faint: rgba(232, 224, 255, .42);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: #07061A;
+  color: var(--ink-star);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* ---------- 画布 ---------- */
+.sky { position: fixed; inset: 0; display: block; }
+
+/* 底部柔光罩：托住文字，也让流星消失在夜色里更自然 */
+.veil {
+  position: fixed; inset: auto 0 0 0; height: 42vh;
+  background: linear-gradient(180deg, rgba(7, 6, 26, 0) 0%, rgba(7, 6, 26, .5) 78%, rgba(5, 4, 18, .9) 100%);
+  pointer-events: none;
+}
+
+/* ---------- 开场文案（"播放键"） ---------- */
+.stage {
+  position: fixed; left: 0; right: 0;
+  top: 17vh;
+  text-align: center;
+  pointer-events: none;
+  padding: 0 26px calc(var(--safe-t) + 0px);
+}
+.stage h1 {
+  font-size: clamp(30px, 6.4vw, 56px);
+  font-weight: 300;
+  letter-spacing: .14em;
+  text-indent: .14em; /* 视觉居中补偿 */
+  color: #FBF7FF;
+}
+.stage p {
+  margin-top: 18px;
+  font-size: clamp(13px, 2vw, 15px);
+  font-weight: 400;
+  letter-spacing: .24em;
+  text-indent: .24em;
+  color: var(--ink-soft);
+}
+
+.verse { animation: rise 1.6s cubic-bezier(.16, 1, .3, 1) both; text-shadow: 0 2px 30px rgba(10, 8, 34, .9); }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* 点击后：整段文字缓缓消散，把夜空让给流星
+   注意：必须 animation:none —— rise 的 fill-mode:both 会以 opacity:1
+   锁定结束帧，覆盖掉这里的 opacity:0，导致文字残留隐不去。 */
+.verse.fade-away {
+  animation: none;
+  transition: opacity .7s ease, transform .7s ease, filter .7s ease;
+  opacity: 0;
+  transform: translateY(-16px);
+  filter: blur(5px);
+  pointer-events: none;
+}
+
+/* ---------- 收尾语（24s 末淡入，作为第二张幻灯片） ---------- */
+.epilogue {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 1.4s ease .2s, transform 1.4s cubic-bezier(.16, 1, .3, 1) .2s, filter 1.4s ease .2s;
+  filter: blur(4px);
+  text-shadow: 0 2px 30px rgba(10, 8, 34, .9);
+}
+.epilogue.show { opacity: 1; transform: none; filter: none; }
+.epilogue h2 {
+  font-size: clamp(22px, 4.6vw, 34px);
+  font-weight: 300;
+  letter-spacing: .16em;
+  text-indent: .16em;
+  color: #FDF9F2;
+}
+.epilogue p {
+  margin-top: 16px;
+  font-size: clamp(12px, 1.9vw, 14px);
+  letter-spacing: .3em;
+  text-indent: .3em;
+  color: rgba(255, 238, 210, .72);
+}
+
+/* 品牌小签名，右下角极淡 */
+.mark {
+  position: fixed; right: 18px; bottom: calc(16px + var(--safe-b));
+  font-size: 11px; letter-spacing: .28em; text-indent: .28em;
+  color: var(--ink-faint); pointer-events: none; z-index: 2;
+}
+
+@media (max-width: 560px) {
+  .stage { top: 18vh; }
+}
+</style>
+</head>
+<body>
+
+<canvas class="sky" id="sky" role="button" aria-label="把愿望说给流星听，点击开始流星雨动画"></canvas>
+<div class="veil" aria-hidden="true"></div>
+
+<div class="stage">
+  <div class="verse" id="verse">
+    <h1>把愿望说给流星听</h1>
+    <p>轻触夜空，等一场流星雨</p>
+  </div>
+  <div class="epilogue" id="epilogue">
+    <h2>听见了，星星替你记得</h2>
+    <p>轻触夜空，再看一场流星雨</p>
+  </div>
+</div>
+<div class="mark" id="mark">星语星图</div>
+
+<script>
+/* ============================================================
+   把愿望说给流星听 · Canvas 叙事引擎
+   —— 一段 24 秒的星空电影 ——
+   点击播放，文字消散，夜空独白开始：
+
+     0-5s   序曲    一两颗流星斜掠长空（慢、长尾、克制）
+     5-9s   渐起    流星多起来，开始有"一阵"的感觉
+     9-16s  流星雨  珠光白与粉的雨帘，间有流星横掠而过
+     16-22s 许愿    金色流星横越天际或缓落，点亮金色新星
+     22-24s 落幕    流星依次淡去，夜空回到最初的寂静
+
+   全程本地 Canvas 绘制，无任何网络依赖。
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const cv = document.getElementById('sky');
+  const ctx = cv.getContext('2d', { alpha: false });
+  const verse = document.getElementById('verse');
+  const epilogue = document.getElementById('epilogue');
+
+  const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 0, H = 0, DPR = 1;
+
+  /* ---------- 稳定随机：保证 resize 后星空不重排乱跳 ---------- */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ---------- 配色 ----------
+     warm   珠光白金（主角）
+     blush  珠光粉（温柔的一抹）
+     cool   冷蓝紫（星空深处的清冽）
+     gold   许愿金（第 4 幕专用：低饱和暖金，不艳）          */
+  const PALETTE = {
+    warm:  ['#FFF6E8', '#FFF1DC', '#FFF9F0'],
+    blush: ['#FFE3EC', '#FFEAF2', '#F9DCE8'],
+    cool:  ['#DCE3FF', '#E6DFFF', '#CFD8F7'],
+    gold:  ['#FFE9B8', '#FFDF9E', '#FFF3D2', '#FFDCA2'],
+  };
+  function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+  }
+  function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  const stars = [];        // 动态星星（含闪烁 / 待亮的新星）
+  const born = [];         // 由流星点亮的"新星"引用
+  let bg = null;           // 背景离屏（星云 + 银河 + 微尘星）
+
+  /* ============================================================
+     背景离屏：深空渐变 + 星云 + 银河斜带 + 远处微尘星
+     ============================================================ */
+  function buildBackground() {
+    bg = document.createElement('canvas');
+    bg.width = Math.round(W * DPR);
+    bg.height = Math.round(H * DPR);
+    const b = bg.getContext('2d');
+    b.scale(DPR, DPR);
+
+    // 深空底
+    const g = b.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0A0822');
+    g.addColorStop(.46, '#0D0B2A');
+    g.addColorStop(1, '#0A081F');
+    b.fillStyle = g;
+    b.fillRect(0, 0, W, H);
+
+    // 银河斜带：极淡的暖雾横过夜空
+    const band = b.createLinearGradient(0, H * .05, W, H * .52);
+    band.addColorStop(0, 'rgba(214, 214, 255, 0)');
+    band.addColorStop(.5, 'rgba(216, 205, 255, .07)');
+    band.addColorStop(1, 'rgba(255, 205, 232, 0)');
+    b.fillStyle = band;
+    b.fillRect(0, 0, W, H);
+
+    // 星云：粉 / 蓝 / 靛三团柔光，低存在感
+    const nebula = [
+      { x: W * .16, y: H * .20, r: Math.max(W, H) * .34, c: 'rgba(120, 96, 214, .13)' },
+      { x: W * .84, y: H * .14, r: Math.max(W, H) * .30, c: 'rgba(238, 148, 190, .10)' },
+      { x: W * .68, y: H * .82, r: Math.max(W, H) * .40, c: 'rgba(64, 92, 196, .10)' },
+    ];
+    nebula.forEach(n => {
+      const rg = b.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      rg.addColorStop(0, n.c);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      b.fillStyle = rg;
+      b.fillRect(n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+    });
+
+    // 远处微尘星（静态，密度高，几乎不闪）：并入背景省性能
+    const dust = Math.min(700, Math.round(W * H / 2200));
+    const rd = mulberry32(42);
+    for (let i = 0; i < dust; i++) {
+      const x = rd() * W, y = rd() * H;
+      const r = .35 + rd() * .75;
+      const warm = rd();
+      const rgb = warm < .42 ? hexToRgb(PALETTE.cool[(rd() * 3) | 0])
+               : warm < .78 ? hexToRgb(PALETTE.warm[(rd() * 3) | 0])
+               : hexToRgb(PALETTE.blush[(rd() * 3) | 0]);
+      const a = .08 + rd() * .2;
+      b.beginPath();
+      b.arc(x, y, r, 0, 6.2832);
+      b.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a + ')';
+      b.fill();
+    }
+  }
+
+  /* ---------- 可见动态星星 ---------- */
+  function makeStar(x, y, opts) {
+    return {
+      x: x, y: y,
+      r: opts.r,
+      base: opts.base,       // 基础不透明度
+      sp: opts.sp || 0,      // 闪烁速度
+      ph: opts.ph || 0,      // 闪烁相位
+      pulse: opts.pulse !== false,
+      bornT: opts.bornT || 0,// >0 表示由流星点亮、正在渐亮
+      color: opts.color,
+      tint: opts.tint || null,
+    };
+  }
+
+  function scatterStars() {
+    const rd = mulberry32(2026);
+    stars.length = 0;
+    born.length = 0;
+
+    const nMid = Math.min(120, Math.round(W * H / 12000));
+    for (let i = 0; i < nMid; i++) {
+      const warm = rd();
+      const key = warm < .42 ? 'cool' : warm < .82 ? 'warm' : 'blush';
+      const col = pick(PALETTE[key]);
+      stars.push(makeStar(rd() * W, rd() * H, {
+        r: .8 + rd() * .9,
+        base: .22 + rd() * .5,
+        sp: .4 + rd() * 2.2,
+        ph: rd() * 6.28,
+        color: col,
+      }));
+    }
+
+    // 亮星：更少、更大、带温柔十字光
+    const nBright = Math.max(9, Math.min(24, Math.round(W * H / 60000)));
+    for (let i = 0; i < nBright; i++) {
+      const warm = rd();
+      const key = warm < .5 ? 'warm' : warm < .85 ? 'blush' : 'cool';
+      const col = pick(PALETTE[key]);
+      stars.push(makeStar(rd() * W, rd() * H, {
+        r: 1.3 + rd() * 1.1,
+        base: .5 + rd() * .4,
+        sp: .7 + rd() * 1.4,
+        ph: rd() * 6.28,
+        color: col,
+      }));
+    }
+  }
+
+  /* ============================================================
+     流星
+     ============================================================ */
+  const meteors = [];
+
+  /* 一颗流星的形态偏好：
+       lone  序曲流星：稀疏慢速，像第一声低语
+       rise  渐起流星：稍快、略密集，向夜空铺开
+       rain  雨幕流星：轻盈连绵的星雨（全场最密的一阵）
+       gold  许愿流星：最慢最亮，暖金绸缎长尾，留下一瞬金点
+
+       方向纪律：全场统一"从右往左"约 17-21° 的温和斜掠。
+       竖屏横向空间窄，同屏多方向交叉会"花眼"，
+       故所有流星共用同一斜率带：右上入、向左下滑过、中左区淡去，
+       方向一致、彼此近似平行——像同一阵风吹来的星。      */
+  const MOOD = {
+    lone: { speed: .62, lenScale: 1.06, rich: 1.05, cap: 2,  plant: .12 },
+    rise: { speed: .85, lenScale: .95,  rich: 1.0,  cap: 5,  plant: .12 },
+    rain: { speed: 1.0, lenScale: .98,  rich: 1.0,  cap: 10, plant: .05 },
+    gold: { speed: .48, lenScale: 1.2,  rich: 1.45, cap: 6,  plant: .55 },
+  };
+
+  // 正片各幕：结束秒数 → 产出率（颗/秒）/ 形态（总长 24s）
+  const ACTS = [
+    { to: 5,   rate: .42, mood: 'lone' },
+    { to: 9,   rate: 1.12, mood: 'rise' },
+    { to: 16,  rate: 2.9,  mood: 'rain' },
+    { to: 22,  rate: 1.25, mood: 'gold' },
+  ];
+
+  function bodyColor(mood) {
+    // 雨幕更粉一点（梦幻）；许愿只出金；其余白金为主、粉点缀
+    if (mood === 'gold') return pick(PALETTE.gold);
+    const roll = Math.random();
+    if (mood === 'rain') return roll < .38 ? pick(PALETTE.warm) : roll < .85 ? pick(PALETTE.blush) : pick(PALETTE.cool);
+    return roll < .5 ? pick(PALETTE.warm) : roll < .86 ? pick(PALETTE.blush) : pick(PALETTE.cool);
+  }
+
+  function spawnMeteor(mood) {
+    mood = MOOD[mood] ? mood : 'lone';
+    const m = MOOD[mood];
+
+    // 终点：停在中左区；由幕决定停在多高（雨幕贴近地平、金色在中下部停息）
+    const tx = W * (mood === 'rain' ? .04 + Math.random() * .5
+                  : mood === 'gold' ? .14 + Math.random() * .5
+                  : .06 + Math.random() * .52);
+    const ty = H * (mood === 'rain' ? (.8 + Math.random() * .18)
+                  : mood === 'gold' ? (.55 + Math.random() * .4)
+                  : (.4 + Math.random() * .55));
+    if (ty > H * .985) return;
+
+    // 起点：上方天际之外偏右。水平左移 ≈ 垂直落差的 0.30-0.40
+    // （相对垂直约 17-21°，幅度温和）→ 一律从右往左划过，且彼此近似平行
+    const drift = .30 + Math.random() * .10;
+    const sy = -(14 + Math.random() * H * .16);
+    const sx = tx + drift * (ty - sy);
+
+    const dx = tx - sx, dy = ty - sy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const len = Math.min(dist, H * .56) * m.lenScale;
+
+    const body = bodyColor(mood);
+    // 飞行时长 = 基准节奏 / 形态速度 → 全程恰好走完、长尾入夜
+    const flightT = (.6 + Math.random() * .75) / m.speed;
+    meteors.push({
+      x: sx, y: sy,
+      vx: dx / dist, vy: dy / dist,
+      stepPerSec: dist / flightT,                       // px/秒（全程恰好走完）
+      len: len,
+      rich: m.rich,                       // 头光 / 缎带宽度的放大器（金色更绸）
+      r: (.9 + Math.random() * .7) * (mood === 'gold' ? 1.3 : 1),
+      life: 1, lifeT: flightT,
+      age: 0,
+      color: body,
+      coreTint: mood === 'gold',          // 金色流星的亮核也染上暖金
+      plant: Math.random() < m.plant,
+    });
+  }
+
+  function plantStar(x, y, gold) {
+    if (born.length >= 24) {
+      const old = born.shift();
+      const i = stars.indexOf(old);
+      if (i >= 0) stars.splice(i, 1);
+    }
+    const col = gold ? pick(PALETTE.gold) : (Math.random() < .6 ? pick(PALETTE.warm) : pick(PALETTE.blush));
+    const s = makeStar(x, y, {
+      r: (gold ? 1.6 : 1.2) + Math.random() * 1.1,
+      base: gold ? .8 : .85,
+      sp: .9 + Math.random() * 1.4,
+      ph: Math.random() * 6.28,
+      color: col,
+    });
+    s.bornT = 0; // 从暗到亮
+    stars.push(s);
+    born.push(s);
+  }
+
+  /* ============================================================
+     叙事状态机
+     idle    开场海报：标题可见，星空呼吸，等待轻触
+     playing 24s 正片：文字消散，夜空独白
+     done    收尾语浮现并停留 5s，自动回 idle；期间轻触可立即重播
+     ============================================================ */
+  let state = 'idle';
+  let startAtMs = 0;      // 正片开始时刻（performance.now 基准）
+  let intAcc = 0;         // 基础产出累计器
+  let burstAt = 0;        // 雨幕"一阵阵"的计时
+  let goldPairAt = 0;     // 许愿阶段双星计时
+  let curtainDone = false;// 22s 落幕处理只做一次
+  let shownFinal = false; // 收尾语淡入只做一次
+  let homeTimer = null;   // 收尾语停留 5s 后回到开场文案的定时器
+
+  function startPlay() {
+    if (REDUCE) return;             // 尊重系统减弱动效设置：保持静态海报
+    if (homeTimer) { clearTimeout(homeTimer); homeTimer = null; } // done 后立即重播：取消回首页定时
+    verse.classList.add('fade-away');
+    epilogue.classList.remove('show');
+    meteors.length = 0;             // 清掉上一次的残星
+    state = 'playing';
+    startAtMs = performance.now();
+    intAcc = .7;                    // 开局约 0.8s 后落下第一颗"序曲"
+    burstAt = .5;
+    goldPairAt = .8;
+    curtainDone = false;
+    shownFinal = false;
+  }
+
+  /* 收尾语展示结束后：淡出收尾语、让开场文案淡入，状态回到 idle 形成闭环 */
+  function goHome() {
+    homeTimer = null;
+    epilogue.classList.remove('show');   // CSS 过渡自然淡出
+    verse.classList.remove('fade-away'); // 让开场文案回来
+    // rise 入场动画初载只播一次，移除 fade-away 不会自动重播 → 强制重启
+    verse.style.animation = 'none';
+    void verse.offsetWidth;              // 强制 reflow
+    verse.style.animation = '';
+    state = 'idle';
+  }
+
+  function easeOut(v) { return 1 - Math.pow(1 - v, 3); }
+
+  /* 正片：依据时刻返回当前幕 [产出率, 形态] */
+  function actAt(el) {
+    for (let i = 0; i < ACTS.length; i++) {
+      if (el < ACTS[i].to) return ACTS[i];
+    }
+    return null;
+  }
+
+  function updateTimeline(el, dt) {
+    const act = actAt(el);
+    if (!act) {                       // 22-24s：不再新生，让天空落幕
+      if (!curtainDone) {
+        curtainDone = true;
+        for (let i = 0; i < meteors.length; i++) {
+          // 给每颗流星一段错开的余生（0.5~1.3s），依次安静淡去
+          meteors[i].lifeT = meteors[i].age + .5 + Math.random() * .8;
+        }
+      }
+      return;
+    }
+
+    const cap = MOOD[act.mood].cap;
+    const trySpawn = function (n) {
+      n = Math.min(n, cap - meteors.length);
+      for (let k = 0; k < n; k++) spawnMeteor(act.mood);
+    };
+
+    // 基础产出（泊松积分）：速率决定"雨量"
+    intAcc += act.rate * dt;
+    if (intAcc >= 1) {
+      const n = Math.min(2, Math.floor(intAcc), cap - meteors.length);
+      intAcc -= Math.floor(intAcc);
+      for (let k = 0; k < n; k++) spawnMeteor(act.mood);
+    }
+    if (intAcc > 2) intAcc = 2;
+
+    // 雨幕幕中"一阵阵"地多落 2-3 颗，形成连绵的帘幕
+    if (act.mood === 'rain') {
+      burstAt -= dt;
+      if (burstAt <= 0 && meteors.length < cap - 1) {
+        burstAt = .5 + Math.random() * .5;
+        trySpawn(2 + (Math.random() * 2 | 0));
+      }
+    }
+
+    // 许愿幕：金色星星常有一颗，偶尔结伴而来
+    if (act.mood === 'gold') {
+      goldPairAt -= dt;
+      if (goldPairAt <= 0) {
+        goldPairAt = 1 + Math.random() * 1.1;
+        if (Math.random() < .4) trySpawn(1);
+      }
+    }
+  }
+
+  /* ============================================================
+     主循环
+     ============================================================ */
+  let raf = null, last = 0;
+
+  function frame(now) {
+    const dt = Math.min(34, now - last || 16.7) / 1000;
+    last = now;
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(bg, 0, 0, W, H);
+
+    const t = now / 1000;
+
+    // ---- 星星 ----
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      let a = s.base;
+      if (s.pulse) a *= .58 + .42 * Math.sin(t * s.sp + s.ph);
+      if (s.bornT != null && s.bornT < 1) {
+        s.bornT = Math.min(1, s.bornT + dt * .9);
+        a *= easeOut(s.bornT);
+      }
+      const rgb = hexToRgb(s.color);
+      const r = s.r + (s.bornT != null && s.bornT < 1 ? (1 - s.bornT) * .4 : 0);
+
+      // 亮星：先铺柔光晕再点核
+      if (s.r > 1.55) {
+        ctx.globalCompositeOperation = 'lighter';
+        const hg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 5);
+        hg.addColorStop(0, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (a * .22) + ')');
+        hg.addColorStop(1, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0)');
+        ctx.fillStyle = hg;
+        ctx.fillRect(s.x - r * 5, s.y - r * 5, r * 10, r * 10);
+        // 十字芒
+        ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (a * .34) + ')';
+        ctx.lineWidth = .6;
+        const m = r * 4.4;
+        ctx.beginPath();
+        ctx.moveTo(s.x - m, s.y); ctx.lineTo(s.x + m, s.y);
+        ctx.moveTo(s.x, s.y - m); ctx.lineTo(s.x, s.y + m);
+        ctx.stroke();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a + ')';
+      ctx.fill();
+    }
+
+    // ---- 流星 ----
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const mt = meteors[i];
+      mt.age += dt;
+      mt.life = Math.max(0, 1 - Math.pow(mt.age / mt.lifeT, 1.35));
+      const step = mt.stepPerSec * dt;
+      mt.x += mt.vx * step;
+      mt.y += mt.vy * step;
+
+      // 尾巴显现节奏：出生后约 0.26s 内从点拉成完整长度
+      const reveal = Math.min(1, mt.age / .26);
+      const grow = 1 - Math.pow(1 - reveal, 2);
+
+      const rgb = hexToRgb(mt.color);
+      const ang = Math.atan2(mt.vy, mt.vx);
+      const fade = mt.life;
+
+      ctx.save();
+      ctx.translate(mt.x, mt.y);
+      ctx.rotate(ang);
+
+      // 尾端（远离头部）：柔和渐隐，多层缎带叠出珠光质感；金色更宽更绸
+      const tailEnd = -mt.len * grow * (0.2 + 0.8 * mt.life) * (0.7 + mt.rich * .3);
+      const L = mt.rich;
+      const stops = [
+        { to: tailEnd,            w: 3.6 * L,  a: .055 },
+        { to: tailEnd * .68,      w: 1.9 * L,  a: .18 },
+        { to: tailEnd * .38,      w: 1.0 * L,  a: .44 },
+      ];
+      for (let s = 0; s < stops.length; s++) {
+        const st = stops[s];
+        const g = ctx.createLinearGradient(0, 0, st.to, 0);
+        g.addColorStop(0, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (fade * st.a) + ')');
+        g.addColorStop(1, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0)');
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(st.to, 0);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = st.w;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      // 头部光晕 + 亮核
+      const hr = (9 + mt.r * 4) * mt.rich;
+      const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, hr);
+      hg.addColorStop(0, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (fade * .5) + ')');
+      hg.addColorStop(.3, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (fade * .16) + ')');
+      hg.addColorStop(1, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(-hr, -hr, hr * 2, hr * 2);
+      // 亮核：金色染上暖金，其余是纯白小圆核，让流星头"实"而不发虚
+      ctx.beginPath();
+      ctx.arc(0, 0, (mt.r * .7 + .4) * (mt.rich > 1 ? 1.25 : 1), 0, 6.2832);
+      ctx.fillStyle = mt.coreTint
+        ? 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (fade * .95) + ')'
+        : 'rgba(255,255,255,' + (fade * .95) + ')';
+      ctx.fill();
+
+      ctx.restore();
+
+      // 许愿时刻：金色流星为中段留下一颗金点新星（愿望落定）
+      if (mt.plant && mt.age > mt.lifeT * .3 && !mt._planted) {
+        mt._planted = true;
+        plantStar(mt.x - mt.vx * mt.len * .42, mt.y - mt.vy * mt.len * .42, mt.coreTint);
+      }
+
+      if (mt.life <= 0 || mt.y > H + 60 || mt.x < -80 || mt.x > W + 80) {
+        meteors.splice(i, 1);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ---- 叙事时间轴 ----
+    if (state === 'playing') {
+      const el = (now - startAtMs) / 1000;
+      if (el >= 24) {
+        state = 'done';
+        if (!homeTimer) homeTimer = setTimeout(goHome, 5000); // 收尾语停留 5s 后回到开场文案
+      } else {
+        updateTimeline(el, dt);
+        // 收尾语：23.3s 起轻轻浮现，恰好在最后一片寂静里说完
+        if (el >= 23.3 && !shownFinal) {
+          shownFinal = true;
+          epilogue.classList.add('show');
+        }
+      }
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  /* ============================================================
+     交互：轻触 = 播放 / 重播
+     ============================================================ */
+  cv.addEventListener('pointerdown', function () {
+    if (REDUCE) return;
+    if (state === 'idle' || state === 'done') startPlay();
+    // 播放中不响应：让这场夜空安安静静演完
+  });
+
+  // 页签切走时暂停，省电
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+    } else if (!REDUCE) {
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+  });
+
+  /* ============================================================
+     尺寸 & 启动
+     ============================================================ */
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    buildBackground();
+    scatterStars();
+
+    // 减弱动效：只呈现一帧宁静的海报
+    if (REDUCE) {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.drawImage(bg, 0, 0, W, H);
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        const rgb = hexToRgb(s.color);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + s.base + ')';
+        ctx.fill();
+      }
+      return;
+    }
+
+    last = 0;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+})();
+</script>
+</body>
+</html>
