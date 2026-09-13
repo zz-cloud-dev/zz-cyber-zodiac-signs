@@ -283,6 +283,8 @@
     if (S.ready || !THREE) return;
     const canvas = document.getElementById('gl-canvas');
     if (!canvas) return;
+    // 兜底：禁止浏览器把画布当图片拖走（避免 no-drop 光标与 pointercancel 打断旋转）
+    canvas.addEventListener('dragstart', e => e.preventDefault());
     S.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     S.scene = new THREE.Scene();
@@ -309,6 +311,25 @@
     S.renderer.setSize(w, h, false);
     S.camera.aspect = w / h;
     S.camera.updateProjectionMatrix();
+  }
+
+  /** 全屏沉浸构图：相机拉近 + 视野放宽，让星座在画面里更大更居中 */
+  function setFocus(on) {
+    if (!S.ready || !S.controls) return;
+    S.controls.target.set(0, 0, 0);
+    if (on) {
+      S.camera.position.set(0, 0.06, 4.55);
+      S.camera.fov = 45;
+      S.controls.minDistance = 3.0;
+      S.controls.maxDistance = 8.5;
+    } else {
+      S.camera.position.set(0, 0.12, 6.1);
+      S.camera.fov = 38;
+      S.controls.minDistance = 4.6;
+      S.controls.maxDistance = 9.6;
+    }
+    S.camera.updateProjectionMatrix();
+    S.controls.update();
   }
 
   function loop() {
@@ -363,7 +384,7 @@
 
   window.XY.gl3d = {
     get enabled() { return !!THREE; },
-    setSign, setVisible, resize,
+    setSign, setVisible, resize, setFocus,
     get visible() { return S.visible; },
   };
 })();

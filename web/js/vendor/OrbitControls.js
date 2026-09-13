@@ -805,6 +805,17 @@
 
 				removePointer( event );
 
+				if ( pointers.length === 0 ) {
+
+					scope.domElement.releasePointerCapture( event.pointerId );
+					scope.domElement.removeEventListener( 'pointermove', onPointerMove );
+					scope.domElement.removeEventListener( 'pointerup', onPointerUp );
+
+				}
+
+				scope.dispatchEvent( _endEvent );
+				state = STATE.NONE;
+
 			}
 
 			function onMouseDown( event ) {

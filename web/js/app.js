@@ -54,7 +54,7 @@
       el.hidden = v !== name;
       el.classList.toggle('is-active', v === name);
     });
-    if (name !== 'personal' && window.XY.gl3d) XY.gl3d.setVisible(false);
+    if (name !== 'personal') { closeFullview(); if (window.XY.gl3d) XY.gl3d.setVisible(false); }
     document.body.classList.toggle('is-home', name === 'home');
     curView = name;
     window.scrollTo(0, 0);
@@ -78,6 +78,7 @@
 
   // 回到输入态（清结果、熄 3D、清高亮、滚到顶）
   function resetPersonal() {
+    closeFullview();
     if (window.XY.gl3d) XY.gl3d.setVisible(false);
     pickedSign = null;
     document.querySelectorAll('#zodiac-grid .zgrid__item').forEach(x => x.classList.remove('is-on'));
@@ -163,6 +164,7 @@
   /* ---------- 星图结果态 ---------- */
   let chartMode = '2d';
   let resultSign = null;
+  let fullOpen = false; // 星图全屏查看层是否打开
   function renderResult(data) {
     // data: { sign, dateLabel, fortune:[{name,val}x4], wise }
     resultSign = data.sign;
@@ -207,7 +209,12 @@
       two.style.display = 'none'; thr.hidden = false;
       XY.gl3d.setSign(resultSign.name);
       XY.gl3d.setVisible(true);
-      setTimeout(() => XY.gl3d.resize(), 60);
+      setTimeout(() => {
+        if (window.XY.gl3d) {
+          XY.gl3d.resize();
+          if (fullOpen) XY.gl3d.setFocus(true); // 全屏内切到 3D 时同样启用近景构图
+        }
+      }, 60);
       stats.inc('mode_3d');
     }
     chartMode = mode;
@@ -215,6 +222,41 @@
 
   // 2D/3D 切换按钮
   document.querySelectorAll('.seg__btn').forEach(b => b.addEventListener('click', () => setSeg(b.dataset.mode)));
+
+  /* ---------- 星图全屏查看 ---------- */
+  function openFullview() {
+    if (fullOpen || !resultSign) return;
+    fullOpen = true;
+    $('chart-box').classList.add('is-fullscreen');
+    $('ovl-name').textContent = resultSign.name;
+    $('ovl-sub').textContent = resultSign.en.toUpperCase();
+    $('chart-ovl').hidden = false;
+    document.body.style.overflow = 'hidden';
+    stats.inc('fullview');
+    if (chartMode === '3d' && window.XY.gl3d) {
+      // 等全屏布局生效后再按新尺寸渲染并启用近景构图
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        XY.gl3d.resize();
+        XY.gl3d.setFocus(true);
+      }));
+    }
+  }
+  function closeFullview() {
+    if (!fullOpen) return;
+    fullOpen = false;
+    $('chart-box').classList.remove('is-fullscreen');
+    $('chart-ovl').hidden = true;
+    document.body.style.overflow = '';
+    if (chartMode === '3d' && window.XY.gl3d) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        XY.gl3d.resize();
+        XY.gl3d.setFocus(false);
+      }));
+    }
+  }
+  document.querySelectorAll('[data-expand]').forEach(b => b.addEventListener('click', openFullview));
+  document.querySelectorAll('[data-close-fullview]').forEach(b => b.addEventListener('click', closeFullview));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFullview(); });
 
   /* ---------- 专属星图主流程 ---------- */
   function goPersonal() {

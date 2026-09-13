@@ -6,8 +6,8 @@
 <title>星语星图 · 拥有一张属于你的星图</title>
 <meta name="description" content="输入生日，点亮专属于你的星座星图 —— 2D/3D 星图 · 星座运势 · 星座合拍。纯本地趣味生成，不收集任何信息。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>✨</text></svg>">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/signs.css">
+<link rel="stylesheet" href="css/base.css?v=20260909b">
+<link rel="stylesheet" href="css/signs.css?v=20260909b">
 </head>
 <body data-sign="" class="is-home">
 
@@ -88,6 +88,12 @@
               <canvas id="gl-canvas"></canvas>
               <p class="chart-3d__hint">拖动旋转 · 双指缩放</p>
             </div>
+            <button type="button" class="chart-expand" data-expand aria-label="全屏查看星图" title="全屏查看">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+              </svg>
+            </button>
           </div>
           <div class="scene__meta">
             <span class="chip" id="r-element"></span>
@@ -194,6 +200,21 @@
       </div>
     </div>
 
+    <!-- 全屏星图查看浮层 -->
+    <div class="chart-ovl" id="chart-ovl" hidden>
+      <div class="chart-ovl__bar">
+        <div class="chart-ovl__ttl">
+          <b id="ovl-name"></b>
+          <span id="ovl-sub"></span>
+        </div>
+        <div class="seg seg--ovl" role="group" aria-label="星图视角">
+          <button type="button" class="seg__btn is-on" data-mode="2d">2D</button>
+          <button type="button" class="seg__btn" data-mode="3d">3D</button>
+        </div>
+        <button type="button" class="chart-ovl__close" data-close-fullview aria-label="退出全屏">✕</button>
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
 </div>
@@ -202,13 +223,13 @@
   <p>星语星图 · 十二星座趣味解读<br>结果仅供参考，不构成人生建议 · 好心情由你自己决定</p>
 </footer>
 
-<script src="js/vendor/three.min.js"></script>
-<script src="js/vendor/OrbitControls.js"></script>
-<script src="js/data.js"></script>
-<script src="js/mock.js"></script>
-<script src="js/star-svg.js"></script>
-<script src="js/star-3d.js"></script>
-<script src="js/share.js"></script>
-<script src="js/app.js"></script>
+<script src="js/vendor/three.min.js?v=20260909b"></script>
+<script src="js/vendor/OrbitControls.js?v=20260909b"></script>
+<script src="js/data.js?v=20260909b"></script>
+<script src="js/mock.js?v=20260909b"></script>
+<script src="js/star-svg.js?v=20260909b"></script>
+<script src="js/star-3d.js?v=20260909b"></script>
+<script src="js/share.js?v=20260909b"></script>
+<script src="js/app.js?v=20260909b"></script>
 </body>
 </html>
